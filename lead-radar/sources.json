@@ -1,0 +1,132 @@
+{
+  "version": "2.0",
+  "updated": "2026-10-08",
+  "note": "2026-10-08 由 dsh 重构：按『能否程序化抓取』+『是否接单形态』重新分组。旧版 15 源不分性质、且无可用性闸，两轮产出 0 条可投商机。 2026-10-08 二次修订：v2ex 默认关闭（招聘/讨论混入无法可靠分离）；finish 后主扫 freelancer + eleduck。",
+  "sources": [
+    {
+      "id": "freelancer",
+      "label": "Freelancer.com",
+      "group": "contract",
+      "adapter": "freelancer",
+      "enabled": true,
+      "endpoint": "https://www.freelancer.com/api/projects/0.1/projects/active/",
+      "note": "公开 API，无需凭据；字段含 time_submitted/budget/type/seo_url"
+    },
+    {
+      "id": "v2ex",
+      "label": "V2EX",
+      "group": "contract",
+      "adapter": "v2ex",
+      "enabled": false,
+      "endpoint": "https://www.v2ex.com/api/topics/show.json?node_name=jobs",
+      "note": "公开 API，无需凭据；国内外包/兼职帖",
+      "reason": "jobs 节点以招聘/讨论为主（2026-10-08 E1 实测：10 条里只有 1 条勉强像接单，且是「数据运营 VP」这类全职岗），接单信号无法可靠分离 → 默认关闭，可用 --source=v2ex 手动开启复核"
+    },
+    {
+      "id": "eleduck",
+      "label": "电鸭社区",
+      "group": "contract",
+      "adapter": "eleduck",
+      "enabled": true,
+      "endpoint": "https://eleduck.com/categories/5",
+      "note": "HTML，需浏览器 UA；302 需跟随"
+    },
+    {
+      "id": "upwork",
+      "label": "Upwork",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录态 + 反爬（Cloudflare）；平台条款禁止自动抓取与自动投标"
+    },
+    {
+      "id": "guru",
+      "label": "Guru.com",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "列表页为分类页，具体项目页需登录后可见"
+    },
+    {
+      "id": "peopleperhour",
+      "label": "PeoplePerHour",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录"
+    },
+    {
+      "id": "contra",
+      "label": "Contra",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录；第三方聚合站（realworkfromanywhere）数据陈旧（实测 5-20 天）"
+    },
+    {
+      "id": "fiverr",
+      "label": "Fiverr",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "buyer request 需登录"
+    },
+    {
+      "id": "zbj",
+      "label": "猪八戒",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录；动态渲染"
+    },
+    {
+      "id": "programmerinn",
+      "label": "程序员客栈",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录"
+    },
+    {
+      "id": "oschina",
+      "label": "开源众包",
+      "group": "contract",
+      "adapter": null,
+      "enabled": false,
+      "reason": "需登录"
+    },
+    {
+      "id": "wwr",
+      "label": "We Work Remotely",
+      "group": "fulltime",
+      "adapter": null,
+      "enabled": false,
+      "reason": "全职招聘板 —— 与项目制形态不符（2026-10-08 移出主扫描）"
+    },
+    {
+      "id": "remoteok",
+      "label": "RemoteOK",
+      "group": "fulltime",
+      "adapter": "remoteok",
+      "enabled": false,
+      "endpoint": "https://remoteok.com/api",
+      "reason": "全职招聘板；API 可用但产出必为全职岗 → 仅作参考，不进正文"
+    },
+    {
+      "id": "wellfound",
+      "label": "Wellfound",
+      "group": "fulltime",
+      "adapter": null,
+      "enabled": false,
+      "reason": "全职/初创招聘板"
+    },
+    {
+      "id": "websearch",
+      "label": "全网兜底搜索",
+      "group": "fulltime",
+      "adapter": null,
+      "enabled": false,
+      "reason": "无稳定结构化来源；上一轮产出为分类页而非项目页"
+    }
+  ]
+}
