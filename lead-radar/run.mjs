@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADAPTERS } from './lib-adapters.mjs';
+import { mailAlerts, loadUrlList } from './lib-mail.mjs';
 import { runGate, scoreLead } from './lib-gate.mjs';
 
 const BT = String.fromCharCode(96); // 反引号（避免在外层模板里转义地狱）
@@ -36,6 +37,7 @@ const ONLY = opt('source', '');
 const CHECK_TOP = Number(opt('check-top', '12'));
 const FETCH_LIMIT = Number(opt('limit', '100'));
 
+const URLS_FILE = opt('urls', '');
 const registry = JSON.parse(fs.readFileSync(path.join(HERE, 'sources.json'), 'utf8'));
 const enabled = registry.sources.filter((s) => s.enabled && s.adapter && (!ONLY || ONLY.split(',').includes(s.id)));
 
@@ -55,11 +57,26 @@ function bidDraft(lead) {
 const table = [];
 const accepted = [];
 const rejected = [];
+const loginWall = [];
+
+// 模式 0：手动粘贴 URL 清单（无需任何平台凭据，立即可用）
+if (URLS_FILE) {
+  const cands = loadUrlList(URLS_FILE);
+  const row = { id: 'manual-urls', label: '手动 URL 清单', group: 'contract', fetched: cands.length, kept: 0, note: URLS_FILE };
+  for (const c of cands) {
+    const scored = scoreLead(c);
+    rejected.push({ ...c, ...scored, reject: '__pending_gate__' });
+  }
+  table.push(row);
+  enabled.length = 0; // 显式指定 URL 清单时不再跑抓取源
+}
 
 for (const src of enabled) {
   const row = { id: src.id, label: src.label, group: src.group, fetched: 0, kept: 0, note: '' };
   try {
-    const cands = await ADAPTERS[src.adapter](src, { limit: FETCH_LIMIT });
+    const fn = ADAPTERS[src.adapter] || (src.adapter === 'mailAlerts' ? mailAlerts : null);
+    if (!fn) { row.note = '未实现的适配器: ' + src.adapter; table.push(row); continue; }
+    const cands = await fn(src, { limit: FETCH_LIMIT });
     row.fetched = cands.length;
     for (const c of cands) {
       if (!c.url) { rejected.push({ ...c, reject: '无 URL' }); continue; }
@@ -86,7 +103,11 @@ if (!DRY) {
     const g = await runGate(p.url);
     const merged = { ...p, http_status: g.http_status, final_url: g.final_url, checked_at: g.checked_at, gate_problems: g.problems.slice() };
     if (g.ok) accepted.push(merged);
-    else rejected.push({ ...merged, reject: '未过闸: ' + g.problems.join('; ') });
+    else if (g.login_wall && /^(mail-alert|manual-url)$/.test(String(p.raw_status || ''))) {
+      // 渠道本身合法（你自己的提醒邮件 / 你手动粘贴），只是页面需登录 → 不当作失败，
+      // 但**绝不混进"已核验"正文**，单独成节并明确标注未独立核验。
+      loginWall.push({ ...merged, reject: '页面需登录（' + g.http_status + '），未独立核验' });
+    } else rejected.push({ ...merged, reject: '未过闸: ' + g.problems.join('; ') });
   }
   for (const p of rest) rejected.push({ ...p, reject: '结构筛选通过但本轮未做 HTTP 核验（超出 check-top=' + CHECK_TOP + '）' });
   for (const row of table) row.kept = accepted.filter((a) => a.source === row.id).length;
@@ -123,7 +144,22 @@ if (!accepted.length) {
     L.push('');
   });
 }
-L.push('## 二、未通过（' + rejected.length + ' 条，附原因）');
+L.push('## 二、待人工确认（' + loginWall.length + ' 条 · 页面需登录，**未独立核验**）');
+L.push('');
+if (!loginWall.length) L.push('（无）');
+else {
+  L.push('> 这些条目来自**你自己的提醒邮件或你手动粘贴**，渠道合法；但平台对匿名访问返回 403/401，');
+  L.push('> 因此本脚本**无法独立核验**页面内容（预算/时效/是否已关闭）。请登录后人工确认再决定。');
+  L.push('');
+  loginWall.forEach((l, i) => {
+    L.push('- **' + (i + 1) + '. ' + l.title + '**');
+    L.push('  - 链接：' + l.url);
+    L.push('  - 来源：' + l.source_label + ' ｜ HTTP：' + l.http_status + '（需登录）');
+    L.push('  - 待确认项：预算 / 发布时间 / 是否仍在招 / 是否已授标');
+  });
+}
+L.push('');
+L.push('## 三、未通过（' + rejected.length + ' 条，附原因）');
 L.push('');
 if (!rejected.length) L.push('（无）');
 else {
@@ -132,14 +168,14 @@ else {
   for (const [k, v] of Object.entries(byReason).sort((a, b) => b[1] - a[1])) L.push('- ' + k + ' × ' + v);
 }
 L.push('');
-L.push('## 三、分源计数表');
+L.push('## 四、分源计数表');
 L.push('');
 L.push('| 源 | 组 | 抓到 | 通过 | 说明 |');
 L.push('|---|---|---|---|---|');
 for (const r of table) L.push('| ' + r.label + ' | ' + r.group + ' | ' + r.fetched + ' | ' + r.kept + ' | ' + (r.note || '') + ' |');
 for (const s of registry.sources.filter((x) => !x.enabled)) L.push('| ' + s.label + ' | ' + s.group + ' | — | 0 | 未启用：' + (s.reason || s.note || '') + ' |');
 L.push('');
-L.push('## 四、口径与限制（如实声明）');
+L.push('## 五、口径与限制（如实声明）');
 L.push('');
 L.push('1. 只实现无需凭据、公开可抓的源；需登录或反爬的平台（Upwork/Guru/PeoplePerHour/Contra/Fiverr/猪八戒/程序员客栈/开源众包）未启用，原因见 sources.json —— 不假装能抓。');
 L.push('2. ' + BT + '--check-top=' + CHECK_TOP + BT + ' 限制 HTTP 复核条数；超出部分标注「未做 HTTP 核验」，不得当作已核验。');
@@ -154,6 +190,6 @@ const mdPath = path.join(HERE, 'briefs', dateId + '-可执行版.md');
 fs.mkdirSync(path.dirname(mdPath), { recursive: true });
 fs.writeFileSync(mdPath, L.join('\n') + '\n', 'utf8');
 const jsonPath = mdPath.replace(/\.md$/, '.json');
-fs.writeFileSync(jsonPath, JSON.stringify({ generated_at: stamp.toISOString(), dry_run: DRY, accepted, rejected, table, registry_version: registry.version }, null, 2), 'utf8');
+fs.writeFileSync(jsonPath, JSON.stringify({ generated_at: stamp.toISOString(), dry_run: DRY, accepted, loginWall, rejected, table, registry_version: registry.version }, null, 2), 'utf8');
 
-console.log(JSON.stringify({ ok: true, brief: mdPath, json: jsonPath, accepted: accepted.length, rejected: rejected.length, table }, null, 1));
+console.log(JSON.stringify({ ok: true, brief: mdPath, json: jsonPath, accepted: accepted.length, loginWall: loginWall.length, rejected: rejected.length, table }, null, 1));

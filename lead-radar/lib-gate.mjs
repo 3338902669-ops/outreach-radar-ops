@@ -50,7 +50,12 @@ export async function runGate(url, opts = {}) {
     return { ok: false, shape: 'unknown', http_status, final_url, title, posted_at: null, problems, checked_at };
   }
 
+  // 2026-10-08 实测：Upwork / Guru 对匿名访问一律回 403（Cloudflare 反爬）。
+  // 这不是死链，而是「需登录/被反爬」——必须与 404 区分，否则会把整条合法渠道误杀。
+  const LOGIN_WALL = [401, 403, 429, 999];
+  const login_wall = LOGIN_WALL.includes(http_status);
   if (http_status === 404) problems.push('HTTP 404（死链）');
+  else if (login_wall) problems.push('HTTP ' + http_status + '（需登录/反爬，未独立核验）');
   else if (http_status >= 400) problems.push('HTTP ' + http_status);
   if (!/^https?:\/\//.test(final_url)) problems.push('最终 URL 非法');
 
@@ -68,7 +73,7 @@ export async function runGate(url, opts = {}) {
   const pm = text.match(/(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2})/) || text.match(/(\d{1,2}\s+(?:hours?|days?|minutes?)\s+ago)/i);
   const posted_at = pm ? pm[1] : null;
 
-  return { ok: problems.length === 0, shape, http_status, final_url, title, posted_at, problems, checked_at };
+  return { ok: problems.length === 0, login_wall: !!login_wall, shape, http_status, final_url, title, posted_at, problems, checked_at };
 }
 
 export function scoreLead(lead) {

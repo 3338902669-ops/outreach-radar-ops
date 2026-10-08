@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "updated": "2026-10-08",
-  "note": "2026-10-08 由 dsh 重构：按『能否程序化抓取』+『是否接单形态』重新分组。旧版 15 源不分性质、且无可用性闸，两轮产出 0 条可投商机。 2026-10-08 二次修订：v2ex 默认关闭（招聘/讨论混入无法可靠分离）；finish 后主扫 freelancer + eleduck。",
+  "note": "2026-10-08 由 dsh 重构：按『能否程序化抓取』+『是否接单形态』重新分组。旧版 15 源不分性质、且无可用性闸，两轮产出 0 条可投商机。 2026-10-08 二次修订：v2ex 默认关闭（招聘/讨论混入无法可靠分离）；finish 后主扫 freelancer + eleduck。 2026-10-08 三次修订：新增邮件提醒通道（upwork-alerts / guru-alerts）与 --urls 手动清单模式；新增 login_wall 语义（401/403/429/999 不再当作死链，但也不冒充已核验）。",
   "sources": [
     {
       "id": "freelancer",
@@ -127,6 +127,24 @@
       "adapter": null,
       "enabled": false,
       "reason": "无稳定结构化来源；上一轮产出为分类页而非项目页"
+    },
+    {
+      "id": "upwork-alerts",
+      "label": "Upwork 职位提醒（邮件）",
+      "group": "contract",
+      "adapter": "mailAlerts",
+      "enabled": false,
+      "dir_env": "RADAR_MAIL_DIR_UPWORK",
+      "reason": "需你先在 Upwork 里开启职位提醒，再把提醒邮件导出为 .eml 放进 RADAR_MAIL_DIR_UPWORK 指向的目录。实测 Upwork 职位页对匿名访问返回 **403**（Cloudflare 反爬），因此本脚本无法独立核验页面内容 —— 这类条目一律进「待人工确认」区，不冒充已核验。"
+    },
+    {
+      "id": "guru-alerts",
+      "label": "Guru 职位提醒（邮件）",
+      "group": "contract",
+      "adapter": "mailAlerts",
+      "enabled": false,
+      "dir_env": "RADAR_MAIL_DIR_GURU",
+      "reason": "同上。实测 guru.com 职位页匿名访问 **403**。"
     }
   ]
 }
