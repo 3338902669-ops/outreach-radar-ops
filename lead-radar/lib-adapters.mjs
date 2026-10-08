@@ -28,17 +28,28 @@ function isWebJob(name) { const n = String(name || '').trim(); return WEB_JOBS.t
 export async function freelancer(src, opts = {}) {
   const out = [];
   const limit = opts.limit || 100;
-  const url = 'https://www.freelancer.com/api/projects/0.1/projects/active/?limit=' + limit +
-    '&offset=0&job_details=true&full_description=true&upgrade_details=true&user_details=true&compact=true&sort_field=time_updated';
-  const j = await getJson(url);
-  const projects = (j.result && j.result.projects) || [];
+  // 2026-10-08：原先只抓第 1 页（50 条里筛出 7 条）。改为分页抓取 + 服务端按技能过滤，成倍提高有效候选。
+  const pages = opts.pages || 3;
+  const JOB_IDS = [9, 3, 40, 17, 994, 984, 200, 551, 922, 993, 30, 202, 42, 31, 5]; // Web Dev/Web Design/HTML/CSS/JS/Scraping/Automation/React/WP/Webflow/Landing/PHP/Figma
+  const projects = [];
+  for (let p = 0; p < pages; p++) {
+    const url = 'https://www.freelancer.com/api/projects/0.1/projects/active/?limit=' + limit +
+      '&offset=' + (p * limit) + '&job_details=true&full_description=true&upgrade_details=true&user_details=true&compact=true&sort_field=time_updated' +
+      '&jobs[]=' + JOB_IDS.join('&jobs[]=');
+    let j;
+    try { j = await getJson(url); } catch (e) { break; }
+    const batch = (j.result && j.result.projects) || [];
+    if (!batch.length) break;
+    projects.push(...batch);
+    if (batch.length < limit) break;
+  }
   for (const p of projects) {
     const hit = (p.jobs || []).filter((x) => isWebJob(x.name));
     if (!hit.length) continue;
     // 2026-10-08 二次收紧：技能标签里只要沾一个 PHP 就会把「教学设计师」放进来。
     // 因此还要求标题/摘要本身含 web 语义词。
     const blob = String(p.title || '') + ' ' + String(p.preview_description || p.description || '');
-    if (!/(website|web site|web\b|wordpress|woocommerce|shopify|webflow|landing page|front[- ]?end|html|css|javascript|react|figma|ui\b|ux\b|seo|elementor|wix|squarespace)/i.test(blob)) continue;
+    if (!/(website|web site|web\b|wordpress|woocommerce|shopify|webflow|landing page|front[- ]?end|html|css|javascript|react|vue|figma|ui\b|ux\b|seo|elementor|wix|squarespace|scrap|crawl|automat|responsive|bootstrap|tailwind)/i.test(blob)) continue;
     const b = p.budget || {};
     out.push({
       source: 'freelancer', source_label: 'Freelancer.com',

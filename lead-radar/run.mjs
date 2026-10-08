@@ -35,7 +35,7 @@ const opt = (n, d) => { const a = argv.find((x) => x.startsWith('--' + n + '='))
 const DRY = flag('dry-run');
 const INCLUDE_FULLTIME = flag('include-fulltime');
 const ONLY = opt('source', '');
-const CHECK_TOP = Number(opt('check-top', '12'));
+const CHECK_TOP = Number(opt('check-top', '60'));
 const FETCH_LIMIT = Number(opt('limit', '100'));
 
 const URLS_FILE = opt('urls', '');
@@ -67,6 +67,7 @@ const table = [];
 const accepted = [];
 const rejected = [];
 const loginWall = [];
+const crowded = [];
 
 // 模式 0：手动粘贴 URL 清单（无需任何平台凭据，立即可用）
 if (URLS_FILE) {
@@ -112,7 +113,14 @@ if (!DRY) {
   for (const p of pending) {
     const g = await runGate(p.url);
     const merged = { ...p, http_status: g.http_status, final_url: g.final_url, checked_at: g.checked_at, gate_problems: g.problems.slice() };
-    if (g.ok) accepted.push(merged);
+    if (g.ok) {
+      // 2026-10-08：公开池实测「每条都有几十到几百个竞标者」。把"能赢的"和"陪跑的"分开，
+      // 否则清单看着热闹、实际一条都投不出结果。
+      const bids = Number(merged.bids || 0);
+      const ageH = merged.posted_at ? (Date.now() - Date.parse(merged.posted_at)) / 3600000 : null;
+      const winnable = bids < 20 && (ageH == null || ageH <= 48);
+      if (winnable) accepted.push(merged); else crowded.push(merged);
+    }
     else if (g.login_wall && /^(mail-alert|manual-url)$/.test(String(p.raw_status || ''))) {
       // 渠道本身合法（你自己的提醒邮件 / 你手动粘贴），只是页面需登录 → 不当作失败，
       // 但**绝不混进"已核验"正文**，单独成节并明确标注未独立核验。
@@ -134,7 +142,7 @@ L.push('- 生成脚本：' + BT + 'lead-radar/run.mjs' + BT + '（独立可执�
 L.push('- 模式：' + (DRY ? '**dry-run（未做 HTTP 复核）**' : '正常（含 HTTP 可用性闸）'));
 L.push('- 门槛：只扫接单/众包源；每条过闸（HTTP 状态 / 关闭过期标记 / 形态判定）；正文只放通过项');
 L.push('');
-L.push('## 一、可投清单（' + accepted.length + ' 条）');
+L.push('## 一、可投清单（' + accepted.length + ' 条 · 判定：竞标 <20 且发布 ≤48h）');
 L.push('');
 if (!accepted.length) {
   L.push('**本轮 0 条可投。** 详见第三节分源计数表与第四节限制说明——没有任何条目被跳过或注水。');
@@ -154,7 +162,21 @@ if (!accepted.length) {
     L.push('');
   });
 }
-L.push('## 二、待人工确认（' + loginWall.length + ' 条 · 页面需登录，**未独立核验**）');
+L.push('## 二、竞标过多的公开池项目（' + crowded.length + ' 条 · 已过闸，但**胜算极低**）');
+L.push('');
+if (!crowded.length) L.push('（无）');
+else {
+  L.push('> 这些项目**内容匹配、页面也正常**，但竞标数 ≥20（多为 100–500）。公开池里一条新账号基本抢不到。');
+  L.push('> 列出来是让你知道市场成色，**不建议投入时间**。');
+  L.push('');
+  crowded.sort((a, b) => (a.bids || 0) - (b.bids || 0));
+  crowded.slice(0, 20).forEach((l, i) => {
+    L.push('- ' + (i + 1) + '. **' + l.title + '** — 竞标 ' + (l.bids ?? '?') + ' ｜ ' + (l.budget_max ? (l.currency + ' ' + l.budget_min + '-' + l.budget_max) : '预算未公开') + ' ｜ ' + l.url);
+  });
+  if (crowded.length > 20) L.push('- …（其余 ' + (crowded.length - 20) + ' 条略）');
+}
+L.push('');
+L.push('## 三、待人工确认（' + loginWall.length + ' 条 · 页面需登录，**未独立核验**）');
 L.push('');
 if (!loginWall.length) L.push('（无）');
 else {
@@ -169,7 +191,7 @@ else {
   });
 }
 L.push('');
-L.push('## 三、未通过（' + rejected.length + ' 条，附原因）');
+L.push('## 四、未通过（' + rejected.length + ' 条，附原因）');
 L.push('');
 if (!rejected.length) L.push('（无）');
 else {
@@ -178,14 +200,14 @@ else {
   for (const [k, v] of Object.entries(byReason).sort((a, b) => b[1] - a[1])) L.push('- ' + k + ' × ' + v);
 }
 L.push('');
-L.push('## 四、分源计数表');
+L.push('## 五、分源计数表');
 L.push('');
 L.push('| 源 | 组 | 抓到 | 通过 | 说明 |');
 L.push('|---|---|---|---|---|');
 for (const r of table) L.push('| ' + r.label + ' | ' + r.group + ' | ' + r.fetched + ' | ' + r.kept + ' | ' + (r.note || '') + ' |');
 for (const s of registry.sources.filter((x) => !x.enabled)) L.push('| ' + s.label + ' | ' + s.group + ' | — | 0 | 未启用：' + (s.reason || s.note || '') + ' |');
 L.push('');
-L.push('## 五、口径与限制（如实声明）');
+L.push('## 六、口径与限制（如实声明）');
 L.push('');
 L.push('1. 只实现无需凭据、公开可抓的源；需登录或反爬的平台（Upwork/Guru/PeoplePerHour/Contra/Fiverr/猪八戒/程序员客栈/开源众包）未启用，原因见 sources.json —— 不假装能抓。');
 L.push('2. ' + BT + '--check-top=' + CHECK_TOP + BT + ' 限制 HTTP 复核条数；超出部分标注「未做 HTTP 核验」，不得当作已核验。');
@@ -200,6 +222,6 @@ const mdPath = path.join(HERE, 'briefs', dateId + '-可执行版.md');
 fs.mkdirSync(path.dirname(mdPath), { recursive: true });
 fs.writeFileSync(mdPath, L.join('\n') + '\n', 'utf8');
 const jsonPath = mdPath.replace(/\.md$/, '.json');
-fs.writeFileSync(jsonPath, JSON.stringify({ generated_at: stamp.toISOString(), dry_run: DRY, accepted, loginWall, rejected, table, registry_version: registry.version }, null, 2), 'utf8');
+fs.writeFileSync(jsonPath, JSON.stringify({ generated_at: stamp.toISOString(), dry_run: DRY, accepted, crowded, loginWall, rejected, table, registry_version: registry.version }, null, 2), 'utf8');
 
-console.log(JSON.stringify({ ok: true, brief: mdPath, json: jsonPath, accepted: accepted.length, loginWall: loginWall.length, rejected: rejected.length, table }, null, 1));
+console.log(JSON.stringify({ ok: true, brief: mdPath, json: jsonPath, winnable: accepted.length, crowded: crowded.length, loginWall: loginWall.length, rejected: rejected.length, table }, null, 1));
