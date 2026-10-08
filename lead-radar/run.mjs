@@ -47,7 +47,8 @@ if (flag('imap-selftest')) {
   process.exit(r.ok ? 0 : 2);
 }
 const registry = JSON.parse(fs.readFileSync(path.join(HERE, 'sources.json'), 'utf8'));
-const enabled = registry.sources.filter((s) => s.enabled && s.adapter && (!ONLY || ONLY.split(',').includes(s.id)));
+// 显式 --source=xxx 时**覆盖** enabled 开关（便于按需临时启用某条通道）
+const enabled = registry.sources.filter((s) => s.adapter && (ONLY ? ONLY.split(',').includes(s.id) : s.enabled));
 
 function bidDraft(lead) {
   const blob = String(lead.title || '') + ' ' + String(lead.summary || '');

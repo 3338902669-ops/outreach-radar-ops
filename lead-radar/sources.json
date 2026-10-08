@@ -151,9 +151,9 @@
       "label": "IMAP 邮件通道（全自动）",
       "group": "contract",
       "adapter": "imapAlerts",
-      "enabled": false,
+      "enabled": true,
       "sourceId": "upwork",
-      "reason": "需在本机 C:\\\\Users\\\\33389\\\\.shared\\\\radar-mail\\\\imap.json 填入你自己的 IMAP 授权码（不是登录密码）。凭据只存本机、不进仓库/日志/聊天；脚本只读信、不改状态、不发信。配置示例见 imap.example.json。"
+      "reason": "已配置并实测通过（2026-10-08：imap.qq.com:993 登录成功）。凭据只存本机 imap.json，不进仓库/日志/聊天。"
     }
   ]
 }
