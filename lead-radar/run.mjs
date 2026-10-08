@@ -23,6 +23,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ADAPTERS } from './lib-adapters.mjs';
 import { mailAlerts, loadUrlList } from './lib-mail.mjs';
+import { imapAlerts, imapSelftest } from './lib-imap.mjs';
 import { runGate, scoreLead } from './lib-gate.mjs';
 
 const BT = String.fromCharCode(96); // 反引号（避免在外层模板里转义地狱）
@@ -38,6 +39,13 @@ const CHECK_TOP = Number(opt('check-top', '12'));
 const FETCH_LIMIT = Number(opt('limit', '100'));
 
 const URLS_FILE = opt('urls', '');
+
+// --imap-selftest：只验证「能不能连上 + 认证」，不读信、不出简报
+if (flag('imap-selftest')) {
+  const r = imapSelftest();
+  console.log(JSON.stringify(r, null, 2));
+  process.exit(r.ok ? 0 : 2);
+}
 const registry = JSON.parse(fs.readFileSync(path.join(HERE, 'sources.json'), 'utf8'));
 const enabled = registry.sources.filter((s) => s.enabled && s.adapter && (!ONLY || ONLY.split(',').includes(s.id)));
 
@@ -74,10 +82,11 @@ if (URLS_FILE) {
 for (const src of enabled) {
   const row = { id: src.id, label: src.label, group: src.group, fetched: 0, kept: 0, note: '' };
   try {
-    const fn = ADAPTERS[src.adapter] || (src.adapter === 'mailAlerts' ? mailAlerts : null);
+    const fn = ADAPTERS[src.adapter] || (src.adapter === 'mailAlerts' ? mailAlerts : src.adapter === 'imapAlerts' ? imapAlerts : null);
     if (!fn) { row.note = '未实现的适配器: ' + src.adapter; table.push(row); continue; }
     const cands = await fn(src, { limit: FETCH_LIMIT });
     row.fetched = cands.length;
+    if (src.__note) row.note = src.__note;
     for (const c of cands) {
       if (!c.url) { rejected.push({ ...c, reject: '无 URL' }); continue; }
       if (c.shape === 'fulltime' && !INCLUDE_FULLTIME) { rejected.push({ ...c, reject: '全职招聘板（非接单形态）' }); continue; }

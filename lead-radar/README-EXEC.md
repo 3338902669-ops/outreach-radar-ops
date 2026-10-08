@@ -95,3 +95,37 @@ node run.mjs --source=upwork-alerts
 - 你登录后人工确认预算与时效，再决定投不投。
 
 **这是刻意的取舍：宁可少给几条，也不把没核验过的东西说成已核验。**
+## C. IMAP 全自动通道（2026-10-08 新增，省掉手动导出）
+
+直接从你自己的邮箱读职位提醒，**不用再导出 .eml**。
+
+### 一次性设置（约 2 分钟）
+
+1. 拿到**授权码**（不是登录密码）：
+   QQ 邮箱 → 设置 → 账户 → 开启 `IMAP/SMTP 服务` → 生成授权码（16 位）。
+2. 复制模板并填入：
+```
+copy C:\Users\33389\.shared\radar-mail\imap.example.json  C:\Users\33389\.shared\radar-mail\imap.json
+:: 然后把 \"pass\" 改成你的 16 位授权码
+```
+3. 自检（只验证能否连上+认证，**不读信、不出简报**）：
+```bash
+node run.mjs --imap-selftest     # 退出码 0=可连；2=失败并打印原因
+```
+4. 跑一次：
+```bash
+node run.mjs --source=imap-inbox
+```
+
+### 安全设计（硬约束）
+
+- 凭据只从 **本机文件** 或环境变量 `RADAR_IMAP_CONFIG` 读取，**绝不写入仓库、日志或聊天**。
+- 调 curl 时用 `--config <临时文件>` 传凭据，**不出现在命令行参数**（避免进程列表泄露），用完**立即删除**。
+- **只读**：不改 `\\Seen` 标记、不删信、不移动、不发信。
+- `imap.json` 与 `.radar-imap-*` 已写进 `.gitignore`，不会被提交。
+- 未配置时返回 0 条并在分源计数表写明原因（**fail-closed**，不猜、不编）。
+
+### 已实测 / 未实测（如实声明）
+
+- ✅ **E1 已验证**：`imap.qq.com:993` TLS 握手成功，服务器返回 `QQMail XMIMAP4Server ready` 与完整 CAPABILITY 列表（AUTH=PLAIN/LOGIN/XOAUTH2）。
+- ⚠️ **E4 未验证**：**带凭据的登录与取信流程尚未跑过**（我不持有你的授权码，也不会拿你的账号试错密码）。填好 `imap.json` 后请先跑 `--imap-selftest`，把结果贴回即可。

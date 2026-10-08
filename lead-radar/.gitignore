@@ -1,0 +1,5 @@
+# 凭据类文件绝不入库（2026-10-08 dsh）
+imap.json
+*.imap.json
+.radar-imap-*
+node_modules/

@@ -1,0 +1,12 @@
+{
+  "_说明": "把本文件复制为 imap.json 并填入真实值。此文件只存在你本机，不要提交到任何仓库、不要贴到聊天里。",
+  "_授权码": "QQ 邮箱：设置 → 账户 → IMAP/SMTP 服务 → 开启 → 生成「授权码」（16 位），填在 pass。注意不是 QQ 登录密码。",
+  "host": "imap.qq.com",
+  "port": 993,
+  "user": "3338902669@qq.com",
+  "pass": "<在这里填 16 位授权码>",
+  "folder": "INBOX",
+  "sourceId": "upwork",
+  "sinceDays": 7,
+  "max": 20
+}

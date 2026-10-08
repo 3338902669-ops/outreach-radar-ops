@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "updated": "2026-10-08",
-  "note": "2026-10-08 由 dsh 重构：按『能否程序化抓取』+『是否接单形态』重新分组。旧版 15 源不分性质、且无可用性闸，两轮产出 0 条可投商机。 2026-10-08 二次修订：v2ex 默认关闭（招聘/讨论混入无法可靠分离）；finish 后主扫 freelancer + eleduck。 2026-10-08 三次修订：新增邮件提醒通道（upwork-alerts / guru-alerts）与 --urls 手动清单模式；新增 login_wall 语义（401/403/429/999 不再当作死链，但也不冒充已核验）。",
+  "note": "2026-10-08 由 dsh 重构：按『能否程序化抓取』+『是否接单形态』重新分组。旧版 15 源不分性质、且无可用性闸，两轮产出 0 条可投商机。 2026-10-08 二次修订：v2ex 默认关闭（招聘/讨论混入无法可靠分离）；finish 后主扫 freelancer + eleduck。 2026-10-08 三次修订：新增邮件提醒通道（upwork-alerts / guru-alerts）与 --urls 手动清单模式；新增 login_wall 语义（401/403/429/999 不再当作死链，但也不冒充已核验）。 2026-10-08 四次修订：新增 IMAP 全自动通道（imap-inbox，curl --config 传凭据，只读）。",
   "sources": [
     {
       "id": "freelancer",
@@ -145,6 +145,15 @@
       "enabled": false,
       "dir_env": "RADAR_MAIL_DIR_GURU",
       "reason": "同上。实测 guru.com 职位页匿名访问 **403**。"
+    },
+    {
+      "id": "imap-inbox",
+      "label": "IMAP 邮件通道（全自动）",
+      "group": "contract",
+      "adapter": "imapAlerts",
+      "enabled": false,
+      "sourceId": "upwork",
+      "reason": "需在本机 C:\\\\Users\\\\33389\\\\.shared\\\\radar-mail\\\\imap.json 填入你自己的 IMAP 授权码（不是登录密码）。凭据只存本机、不进仓库/日志/聊天；脚本只读信、不改状态、不发信。配置示例见 imap.example.json。"
     }
   ]
 }
